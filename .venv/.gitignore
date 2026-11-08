@@ -1,0 +1,31 @@
+# Ambiente Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Configuração local do PyCharm
+.idea/
+
+# Credenciais
+.env
+.env.*
+!.env.example
+
+# Notebooks: arquivos temporários
+.ipynb_checkpoints/
+
+# Dados e resultados gerados
+data/
+outputs/
+runs/
+wandb/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
