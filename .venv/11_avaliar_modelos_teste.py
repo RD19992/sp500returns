@@ -10,6 +10,10 @@ from datetime import datetime
 from pathlib import Path
 from time import perf_counter, process_time
 
+import matplotlib
+
+# Usa o backend Agg para salvar os gráficos em PNG sem abrir janelas.
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
