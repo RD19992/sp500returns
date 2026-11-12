@@ -7,7 +7,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch
+
 
 # EDITE AQUI. None usa o último run concluído da família.
 RUNS = {"cnn_minima": None, "cnn_residual": None, "experimentos_cnn": None}
@@ -16,7 +16,7 @@ DPI = 450
 RAIZ = Path(__file__).resolve().parent
 TITULOS = {"cnn_minima": "CNN mínima", "cnn_residual": "CNN residual dilatada",
            "experimentos_cnn": "CNN experimental"}
-AZUL, TINTA, CINZA = "#165772", "#20323d", "#536875"
+
 
 
 def ler(p):
@@ -72,79 +72,100 @@ def arquitetura(familia, resumo):
 
 
 def desenhar(a, titulo, destino):
-    # A coluna esquerda mostra o fluxo. À direita, cada ponto cheio é um peso
-    # temporal do kernel; a distância horizontal representa a dilatação.
+    # Um bloco genérico mostra o fluxo. A tabela descreve cada ocorrência do bloco.
+    blocos = a["blocos"]
     residual = a["residual"]
-    passo = 1.90 if residual else 1.04
-    centros = [2.30 + i * passo for i in range(len(a["blocos"]))]
-    leitura_y = centros[-1] + (1.74 if residual else 1.08)
-    altura = leitura_y + 1.62
-    fig, ax = plt.subplots(figsize=(8.1, altura * .64))
-    fig.subplots_adjust(left=.025, right=.975, top=.985, bottom=.015)
-    ax.set(xlim=(0, 10), ylim=(altura, 0))
+    n = len(blocos)
+    altura = 3.15 + .28*n + (.43 if residual else 0)
+    fig, ax = plt.subplots(figsize=(7.05, altura))
+    ax.set(xlim=(0, 7.05), ylim=(altura, 0))
+    fig.subplots_adjust(left=.025, right=.98, bottom=.02, top=.98)
     ax.axis("off")
-    def texto(x, y, s, **kw):
-        ax.text(x, y, s, va="center", color=kw.pop("color", TINTA), **kw)
-    def seta(x1, y1, x2, y2):
-        ax.annotate("", xy=(x2,y2), xytext=(x1,y1), arrowprops=dict(
-            arrowstyle="-|>", color=CINZA, lw=.9, shrinkA=0, shrinkB=0, mutation_scale=9))
-    def caixa(y, rotulo, sub="", tom="white"):
-        ax.add_patch(FancyBboxPatch((1.15,y-.31), 4.08,.62, boxstyle="round,pad=.01,rounding_size=.055",
-                                    facecolor=tom, edgecolor=AZUL, linewidth=.9))
-        texto(3.19,y-(.115 if sub else 0),rotulo,ha="center",fontsize=10,weight="semibold")
-        if sub:
-            texto(3.19,y+.14,sub,ha="center",fontsize=8.4)
-    texto(.10,.23,titulo,fontsize=16,weight="semibold")
-    padding = "causal à esquerda" if a["padding"] == "causal" else "valid (sem preenchimento)"
-    texto(.10,.61,f'{a["parametros"]:,} parâmetros   ·   Padding {padding}   ·   Campo local final: {a["campo"]} pregões'.replace(","," "),fontsize=9)
-    caixa(1.23,"Entrada temporal",f'1 canal × {a["janela"]} log-retornos diários')
-    texto(5.66,1.13,"Amostras de uma convolução",fontsize=10,weight="semibold")
-    texto(5.66,1.43,"Passado à esquerda; posição atual à direita",fontsize=8.4)
-    anterior = 1.55
-    atraso_max = max(1,max((k-1)*d for _,_,k,d,_ in a["blocos"]))
-    for i, (y, (cin, cout, k, d, t)) in enumerate(zip(centros, a["blocos"]),1):
-        seta(3.19,anterior,3.19,y-.32)
-        titulo_bloco = f"Bloco {i}   ·   2 × Conv1d" if residual else f"Conv1d {i}   →   ReLU"
-        caixa(y,titulo_bloco,f"{cin} → {cout} canais   ·   k = {k}   ·   d = {d}   ·   T = {t}", "#eaf3f5")
-        x0, x1 = 5.72, 9.62
-        ax.plot([x0,x1],[y,y],color="#bccbd0",lw=.8)
-        for j in range(k):
-            x = x1 - (x1-x0)*j*d/atraso_max
-            ax.plot(x,y,"o",ms=5,color=AZUL)
-        texto(x1,y+.25, f"atrasos: {', '.join(str(j*d) for j in reversed(range(k)))}",ha="right",fontsize=8.3)
-        anterior=y+.32
-        if residual:
-            atalho=a["atalho"]
-            if atalho:
-                inicio=y-.49
-                ax.plot([3.19,.65,.65],[inicio,inicio,y+.89],color=CINZA,lw=.9)
-                seta(.65,y+.89,1.14,y+.89)
-                texto(.58,y+.20,"1×1" if cin!=cout else "Id",rotation=90,ha="right",fontsize=8)
-            seta(3.19,anterior,3.19,y+.57)
-            caixa(y+.89,"Soma  →  ReLU" if atalho else "ReLU")
-            anterior=y+1.21
-    seta(3.19,anterior,3.19,leitura_y-.32)
-    caixa(leitura_y,"Última posição" if a["leitura"]=="ultima" else "Média temporal global",
-          f'{a["blocos"][-1][1]} características')
-    seta(3.19,leitura_y+.32,3.19,leitura_y+.57)
-    caixa(leitura_y+.89,"Linear  →  previsão escalar","Alvo padronizado de um horizonte", "#eaf3f5")
+
+    def txt(x, y, s, tam=10, ha="left"):
+        ax.text(x,y,s,fontsize=tam,ha=ha,va="center",color="#171717")
+
+    def linha(x1,y1,x2,y2):
+        ax.plot([x1,x2],[y1,y2],lw=.65,color="#454545")
+
+    def seta(x1,y1,x2,y2):
+        ax.annotate("",xy=(x2,y2),xytext=(x1,y1),arrowprops=dict(
+            arrowstyle="-|>",lw=.7,color="#393939",mutation_scale=8,shrinkA=0,shrinkB=0))
+
+    txt(.08,.16,titulo,14)
+    txt(6.95,.16,f'{a["parametros"]:,} parâmetros'.replace(","," "),10,"right")
+    linha(.08,.36,6.95,.36)
+    y = 1.00
+    txt(.10,.54,"(a)   Transformação de um bloco" if residual else "(a)   Transformação de uma camada")
+    txt(.27,y,r"$x_{i-1}$",13)
+    seta(.79,y,1.48,y)
+    txt(1.98,y,r"$F_i$",14,"center")
+    seta(2.29,y,3.06,y)
+    if residual and a["atalho"]:
+        txt(3.24,y,r"$\oplus$",14,"center")
+        linha(1.04,y,1.04,y-.25)
+        linha(1.04,y-.25,3.24,y-.25)
+        seta(3.24,y-.25,3.24,y-.10)
+        txt(2.10,y-.34,r"$S_i$",9,"center")
+        seta(3.42,y,4.01,y)
+        txt(4.40,y,"ReLU",11,"center")
+        seta(4.78,y,5.41,y)
+        txt(5.54,y,r"$x_i$",13)
+    else:
+        txt(3.52,y,"ReLU",11,"center")
+        seta(3.97,y,4.69,y)
+        txt(4.83,y,r"$x_i$",13)
     if residual:
-        p = a["dropout"]
-        texto(5.66,leitura_y-.24,"Ordem no ramo convolucional",fontsize=9.4,weight="semibold")
-        texto(5.66,leitura_y+.08,f"Conv 1 → ReLU → Dropout1d ({p:g})",fontsize=8.5)
-        relu = "ReLU → " if a["relu2"] else ""
-        texto(5.66,leitura_y+.39,f"Conv 2 → {relu}Dropout1d ({p:g})",fontsize=8.5)
+        segunda = " → ReLU" if a["relu2"] else ""
+        txt(.10,1.34,f'$F_i$: Conv → ReLU → D → Conv{segunda} → D.   D = Dropout1d (p = {a["dropout"]:g}).',9)
         if a["atalho"]:
-            texto(5.66,leitura_y+.79,"Id: identidade. 1×1: projeção de canais.",fontsize=8)
+            nota="$S_i$: identidade ou projeção 1 × 1 quando muda o número de canais."
             if a["padding"]=="valid":
-                texto(5.66,leitura_y+1.10,"Atalho mantém as últimas T posições.",fontsize=8)
+                nota += " Alinhamento à direita."
+            txt(.10,1.54,nota,9)
+    else:
+        txt(.10,1.32,"$F_i$: convolução temporal unidimensional.",9)
+    yb=1.92 if residual else 1.60
+    txt(.10,yb,"(b)   Sequência de blocos e suporte temporal dos kernels" if residual
+        else "(b)   Sequência de camadas e suporte temporal dos kernels")
+    yb+=.30
+    cols=[.23,1.04,1.85,2.26,2.72,3.28]
+    for x,s in zip(cols,["i","Canais","k","d","T","Campo¹"]):
+        txt(x,yb,s,9,"center")
+    txt(5.37,yb,"Posição relativa na entrada da camada",9,"center")
+    linha(.08,yb+.14,6.95,yb+.14)
+    campo=1
+    atraso=max((k-1)*d for _,_,k,d,_ in blocos)
+    x0,x1=3.95,6.80
+    for i,(entrada,saida,k,d,t) in enumerate(blocos,1):
+        yy=yb+.16+.28*i
+        campo+=(k-1)*d*(2 if residual else 1)
+        for x,s in zip(cols,[str(i),f"{entrada} → {saida}",str(k),str(d),str(t),str(campo)]):
+            txt(x,yy,s,10,"center")
+        # Os pontos mostram a mesma escala de defasagens em todas as linhas.
+        xs=[x1-(x1-x0)*j*d/max(atraso,1) for j in range(k)]
+        linha(min(xs),yy,x1,yy)
+        ax.plot(xs,[yy]*k,"o",ms=3.5,color="#171717")
+    eixo=yy+.21
+    if atraso:
+        linha(x0,eixo,x1,eixo)
+    for lag in sorted({0,atraso//2,atraso}):
+        x=x1-(x1-x0)*lag/max(atraso,1)
+        linha(x,eixo,x,eixo+.04)
+        txt(x,eixo+.15,"t" if lag==0 else f"t − {lag}",8,"center")
+    yfim=eixo+.39
+    linha(.08,yfim,6.95,yfim)
+    leitura="última posição" if a["leitura"]=="ultima" else "média temporal global"
+    pad="causal à esquerda" if a["padding"]=="causal" else "valid"
+    txt(.10,yfim+.18,f'Entrada: {a["janela"]} retornos.   Padding: {pad}.   Leitura: {leitura} → linear → escalar.',9)
+    txt(.10,yfim+.38,"¹ Campo receptivo local, em pregões.   T: comprimento temporal após o bloco.",8.5)
     for formato in FORMATOS:
-        fig.savefig(destino.with_suffix("."+formato), dpi=DPI, facecolor="white", bbox_inches="tight", pad_inches=.09)
+        fig.savefig(destino.with_suffix("."+formato), dpi=DPI, bbox_inches="tight", pad_inches=.04)
     plt.close(fig)
 
 
 def main():
-    plt.rcParams.update({"font.family":"DejaVu Sans","pdf.fonttype":42,"svg.fonttype":"none"})
+    plt.rcParams.update({"font.family":"STIXGeneral","font.weight":"normal","mathtext.fontset":"stix","pdf.fonttype":42,"svg.fonttype":"none"})
     pasta=RAIZ/"outputs/diagramas_arquiteturas"/datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     pasta.mkdir(parents=True)
     grupos, linhas = {}, []
